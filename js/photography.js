@@ -1,11 +1,10 @@
 import gsap from "gsap";
-import { Observer } from "gsap/Observer";
 import { SplitText, reducedMotion } from "./reveal.js";
 import { siteConfig } from "./config.js";
 import { backdropForProject, preloadProjectImages } from "./theme.js";
 import { getCursor } from "./cursor.js";
 
-gsap.registerPlugin(Observer, SplitText);
+gsap.registerPlugin(SplitText);
 
 // Ported deck controls. Keep these together so the stack can be tuned as a unit.
 const VISIBLE = 5;
@@ -15,7 +14,6 @@ const DURATION = 1;
 const STEP_DURATION = reducedMotion ? 0.3 : DURATION;
 const EASE = "power3.inOut";
 const INPUT_COOLDOWN = 1150;
-const OVERSHOOT = 3;
 const WHEEL_THRESHOLD = 100;
 const projects = siteConfig.photography.projects;
 let returnIndex = 0;
@@ -23,9 +21,22 @@ let hasInteracted = false;
 export { returnIndex };
 
 const mod = (n, length) => ((n % length) + length) % length;
+const slotScale = (p) => {
+  const scales = [0.82, 0.86, 0.9, 0.95, 1];
+  const slot = Math.max(0, Math.min(FRONT, p));
+  const from = Math.floor(slot);
+  const to = Math.ceil(slot);
+  return gsap.utils.interpolate(scales[from], scales[to], slot - from);
+};
 const pos = (p) => ({
   xPercent: -50,
-  yPercent: -65 + STEP * p,
+  // Keep the five projected cards tightly grouped around a centered front.
+  // With the 250px bottom-origin perspective, this offsets the deeper cards
+  // upward enough to reveal only a narrow strip above the front image.
+  yPercent: matchMedia("(max-width: 768px)").matches
+    ? -104 + 13.5 * p
+    : -98 + 12 * p,
+  scale: slotScale(p),
   z: STEP * p,
   force3D: true,
 });
@@ -53,12 +64,12 @@ export function createPhotographyView(root, { navigate } = {}) {
   let busy = false;
   let cooldown = false;
   let queuedDirection = 0;
-  let observer = null;
   let stepTimeline = null;
   let cooldownCall = null;
   let wheelSum = 0;
   let wheelDirection = 0;
   let wheelReset = null;
+  let touchStart = null;
   let running = false;
   let disposed = false;
 
@@ -102,7 +113,7 @@ export function createPhotographyView(root, { navigate } = {}) {
     return layer;
   }
 
-  function displayProject(index, animate = false, timeline = null) {
+  function displayProject(index, animate = false, timeline = null, direction = 1) {
     const item = projects[index];
     const percent = Math.round(
       (100 * index) / Math.max(1, projects.length - 1),
@@ -131,10 +142,10 @@ export function createPhotographyView(root, { navigate } = {}) {
           },
           0,
         );
-      rollLabel(counter, newCounter, timeline);
-      rollLabel(count, newCount, timeline);
-      rollLabel(year, newYear, timeline);
-      rollLabel(city, item.location, timeline);
+      rollLabel(counter, newCounter, timeline, direction);
+      rollLabel(count, newCount, timeline, direction);
+      rollLabel(year, newYear, timeline, direction);
+      rollLabel(city, item.location, timeline, direction);
     } else {
       counter.textContent = newCounter;
       count.textContent = newCount;
@@ -153,7 +164,7 @@ export function createPhotographyView(root, { navigate } = {}) {
       ?.setAttribute("content", color);
   }
 
-  function rollLabel(node, value, timeline) {
+  function rollLabel(node, value, timeline, direction = 1) {
     // Small metadata is a masked two-line swap; it is built into the step timeline.
     const original = node.textContent;
     if (original === value) return;
@@ -167,12 +178,14 @@ export function createPhotographyView(root, { navigate } = {}) {
     newLine.textContent = value;
     mask.append(oldLine, newLine);
     node.replaceChildren(mask);
-    gsap.set(newLine, { yPercent: 100 });
+    const incomingY = direction > 0 ? 100 : -100;
+    const outgoingY = -incomingY;
+    gsap.set(newLine, { yPercent: incomingY });
     timeline
       .to(
         oldLine,
         {
-          yPercent: reducedMotion ? 0 : -100,
+          yPercent: reducedMotion ? 0 : outgoingY,
           duration: reducedMotion ? 0.01 : 0.55,
           ease: reducedMotion ? "none" : "hop2",
         },
@@ -291,6 +304,7 @@ export function createPhotographyView(root, { navigate } = {}) {
     incoming.theme =
       projects[incomingIndex].theme || projects[incomingIndex].visual.color;
     gsap.set(incoming.button, {
+      // A backward step reverses the far layer's forward exit from slot -1.
       ...pos(down ? FRONT - 1.2 : -1),
       opacity: 0,
       pointerEvents: "none",
@@ -320,10 +334,8 @@ export function createPhotographyView(root, { navigate } = {}) {
             opacity: slotOpacity(p),
             pointerEvents: p === FRONT ? "auto" : "none",
           });
-          if (layer !== incoming && p !== FRONT)
-            gsap.set(layer.words, { yPercent: 110 });
+          gsap.set(layer.words, { yPercent: p === FRONT ? 0 : 110 });
         });
-        gsap.set(incoming.words, { yPercent: 0 });
         displayProject(active, false);
         stepTimeline = null;
         finishStep();
@@ -335,9 +347,8 @@ export function createPhotographyView(root, { navigate } = {}) {
     });
     stepTimeline = timeline;
     setBackdrop(projects[active], 0, timeline);
-    displayProject(active, true, timeline);
+    displayProject(active, true, timeline, direction);
 
-    const shift = down ? -1 : 1;
     layers.forEach((layer, p) => {
       const target = down ? p - 1 : p + 1;
       if (reducedMotion) {
@@ -356,17 +367,18 @@ export function createPhotographyView(root, { navigate } = {}) {
           );
         if (!down && layer === layers[FRONT - 1])
           timeline.set(layer.words, { yPercent: 0 }, STEP_DURATION);
-      } else if (layer === outgoing && !down) {
-        timeline.to(layer.button, { ...pos(FRONT + OVERSHOOT), opacity: 0 }, 0);
+      } else if (!down && layer === oldFront) {
+        // Retrace the incoming front card's exact path from the previous step.
+        timeline.to(layer.button, { ...pos(FRONT - 1.2), opacity: 0 }, 0);
         timeline.to(
           layer.words,
           {
-            yPercent: -110,
-            duration: 0.42,
-            ease: "hop2",
-            stagger: { each: 0.015, from: "random" },
+            yPercent: 110,
+            duration: 0.75,
+            ease: "power4.in",
+            stagger: { each: 0.15, from: "end" },
           },
-          0,
+          0.5,
         );
       } else {
         timeline.to(
@@ -387,11 +399,16 @@ export function createPhotographyView(root, { navigate } = {}) {
           0,
         );
       } else if (!down && layer === layers[FRONT - 1]) {
-        // This becomes the new front and rises into place as the deck settles.
+        // Reverse the prior front title's drop as that card returns to the front.
         timeline.to(
           layer.words,
-          { yPercent: 0, duration: 0.75, ease: "power4.out", stagger: 0.15 },
-          0.5,
+          {
+            yPercent: 0,
+            duration: 0.55,
+            ease: "hop2",
+            stagger: { each: 0.015, from: "random" },
+          },
+          0,
         );
       }
     });
@@ -413,7 +430,6 @@ export function createPhotographyView(root, { navigate } = {}) {
         { yPercent: 0, duration: 0.75, ease: "power4.out", stagger: 0.15 },
         0.5,
       );
-    else timeline.to(incoming.words, { yPercent: 110, duration: 0.01 }, 0);
   }
 
   const onWheel = (event) => {
@@ -421,10 +437,9 @@ export function createPhotographyView(root, { navigate } = {}) {
     if (event.deltaY) wheelDirection = Math.sign(event.deltaY);
     wheelSum += Math.abs(event.deltaY);
     clearTimeout(wheelReset);
-    wheelSum = 0;
-    wheelDirection = 0;
     wheelReset = setTimeout(() => {
       wheelSum = 0;
+      wheelDirection = 0;
     }, 150);
     if (Math.abs(wheelSum) >= WHEEL_THRESHOLD) {
       const direction = wheelDirection || 1;
@@ -433,6 +448,26 @@ export function createPhotographyView(root, { navigate } = {}) {
       requestStep(direction);
     }
   };
+  const onTouchStart = (event) => {
+    if (event.touches.length !== 1) {
+      touchStart = null;
+      return;
+    }
+    touchStart = { y: event.touches[0].clientY };
+  };
+  const onTouchMove = (event) => {
+    if (touchStart && event.cancelable) event.preventDefault();
+  };
+  const onTouchEnd = (event) => {
+    if (!touchStart || !event.changedTouches.length) return;
+    const end = event.changedTouches[0];
+    const deltaY = end.clientY - touchStart.y;
+    touchStart = null;
+    if (Math.abs(deltaY) < 50) return;
+    if (event.cancelable) event.preventDefault();
+    requestStep(deltaY < 0 ? 1 : -1);
+  };
+  const onTouchCancel = () => { touchStart = null; };
   const onKey = (event) => {
     if (root.closest("#page-layer")?.inert) return;
     if (["ArrowDown", "PageDown", " "].includes(event.key)) {
@@ -510,14 +545,10 @@ export function createPhotographyView(root, { navigate } = {}) {
     if (running) return;
     running = true;
     disposed = false;
-    observer = Observer.create({
-      target: stage,
-      type: "touch",
-      onUp: () => requestStep(1),
-      onDown: () => requestStep(-1),
-      tolerance: 50,
-      preventDefault: true,
-    });
+    stage.addEventListener("touchstart", onTouchStart, { passive: true });
+    stage.addEventListener("touchmove", onTouchMove, { passive: false });
+    stage.addEventListener("touchend", onTouchEnd, { passive: false });
+    stage.addEventListener("touchcancel", onTouchCancel, { passive: true });
     stage.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("keydown", onKey);
     window.addEventListener("resize", updateScrollHintLabel);
@@ -528,8 +559,10 @@ export function createPhotographyView(root, { navigate } = {}) {
     if (!running && disposed) return;
     running = false;
     disposed = true;
-    observer?.kill();
-    observer = null;
+    stage.removeEventListener("touchstart", onTouchStart);
+    stage.removeEventListener("touchmove", onTouchMove);
+    stage.removeEventListener("touchend", onTouchEnd);
+    stage.removeEventListener("touchcancel", onTouchCancel);
     stage.removeEventListener("wheel", onWheel);
     window.removeEventListener("keydown", onKey);
     window.removeEventListener("resize", updateScrollHintLabel);

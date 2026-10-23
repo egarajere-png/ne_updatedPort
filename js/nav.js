@@ -187,7 +187,7 @@ export function createNavigation(router) {
   } else {
     openTimeline.set(card, { display: "block", autoAlpha: 1, pointerEvents: "none" }, 0)
       .to(card, { yPercent: 0, rotate: 0, duration: 0.9, ease: "hop", force3D: true }, 0)
-      .to(pageLayer, { scale: 1.08, rotate: -2, yPercent: -4, duration: 0.9, ease: "hop", force3D: true }, 0)
+      .to(pageLayer, { scale: 1.08, yPercent: -4, duration: 0.9, ease: "hop", force3D: true }, 0)
       .to(menuWord, { yPercent: -110, duration: 0.2, ease: "hop2" }, 0.3)
       .to(closeWord, { yPercent: 0, duration: 0.2, ease: "hop2" }, 0.5)
       .to(labels, { yPercent: 0, duration: 0.75, ease: "hop2", stagger: (i) => i < 3 ? i * 0.06 : 0.08 + (i - 3) * 0.06, force3D: true }, 0.45);
@@ -199,7 +199,7 @@ export function createNavigation(router) {
       card.inert = true;
       card.setAttribute("aria-hidden", "true");
       gsap.set(card, { display: "none", autoAlpha: 0, yPercent: -110, rotate: -10, clearProps: "pointerEvents" });
-      gsap.set(pageLayer, { visibility: "visible", opacity: 1, scale: 1, rotate: 0, yPercent: 0, clearProps: "transformOrigin" });
+      gsap.set(pageLayer, { visibility: "visible", opacity: 1, scale: 1, yPercent: 0, clearProps: "transformOrigin,rotate" });
       pageLayer.classList.remove("is-transition-moving");
       card.classList.remove("is-transitioning");
       pageLayer.inert = false;
@@ -224,7 +224,7 @@ export function createNavigation(router) {
   } else {
     leaveTimeline.to(menuColumns, { x: "-3vw", duration: 0.3, ease: "power2.out", force3D: true }, 0)
       .to(card, { yPercent: -110, rotate: -10, duration: 0.9, ease: "hop", force3D: true }, 0.1)
-      .to(pageLayer, { scale: 1, rotate: 0, yPercent: 0, duration: 0.9, ease: "hop", force3D: true }, 0.1)
+      .to(pageLayer, { scale: 1, yPercent: 0, duration: 0.9, ease: "hop", force3D: true }, 0.1)
       .to(closeWord, { yPercent: -110, duration: 0.2, ease: "hop2" }, 0.25)
       .to(menuWord, { yPercent: 0, duration: 0.2, ease: "hop2" }, 0.45);
   }
