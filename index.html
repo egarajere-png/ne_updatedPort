@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#e0e2db" />
+    <title>Nneka Egara — Filmmaker & Copywriter</title>
+    <link rel="stylesheet" href="css/base.css" />
+    <link rel="stylesheet" href="css/nav.css" />
+    <link rel="stylesheet" href="css/pages.css" />
+    <link rel="stylesheet" href="css/photography.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "gsap": "https://cdn.jsdelivr.net/npm/gsap@3.13.0/index.js",
+          "gsap/CustomEase": "https://cdn.jsdelivr.net/npm/gsap@3.13.0/CustomEase.js",
+          "gsap/SplitText": "https://cdn.jsdelivr.net/npm/gsap@3.13.0/SplitText.js",
+          "gsap/Observer": "https://cdn.jsdelivr.net/npm/gsap@3.13.0/Observer.js",
+          "gsap/ScrollTrigger": "https://cdn.jsdelivr.net/npm/gsap@3.13.0/ScrollTrigger.js",
+          "lenis": "https://cdn.jsdelivr.net/npm/lenis@1.1.20/+esm"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div class="preloader" aria-hidden="true">
+      <div class="preloader-images">
+        <div class="preloader-img"><img src="img1.jpg" alt="" /></div>
+        <div class="preloader-img"><img src="img2.jpg" alt="" /></div>
+        <div class="preloader-img"><img src="img3.jpg" alt="" /></div>
+        <div class="preloader-img"><img src="img4.jpg" alt="" /></div>
+        <div class="preloader-img"><img src="img5.jpg" alt="" /></div>
+        <div class="preloader-img"><img src="img1.jpg" alt="" /></div>
+      </div>
+      <div class="preloader-header">
+        <h1>Nneka</h1>
+        <div class="preloader-counter"><p>000</p></div>
+      </div>
+    </div>
+    <main id="page-layer" aria-live="polite"></main>
+    <section id="menu-card" aria-hidden="true" inert>
+      <nav class="menu-columns" aria-label="Site pages"></nav>
+      <span class="transition-card-title" aria-hidden="true"></span>
+      <div class="menu-mobile-actions">
+        <button class="dark-mode" type="button">DARK MODE</button
+        ><a class="menu-talk-link" href="#/contact">LET'S TALK</a>
+      </div>
+      <div class="menu-url" aria-live="polite"></div>
+    </section>
+    <header id="top-bar" aria-label="Main navigation">
+      <a class="topbar-brand" href="#/">NNEKA EGARA</a>
+      <button class="dark-mode topbar-dark-mode" type="button">
+        DARK MODE
+      </button>
+      <button
+        class="menu-toggle"
+        type="button"
+        aria-expanded="false"
+        aria-controls="menu-card"
+      >
+        <span class="menu-toggle-mask"
+          ><span class="menu-toggle-word menu-word">MENU</span
+          ><span class="menu-toggle-word close-word">CLOSE</span></span
+        >
+      </button>
+      <a class="talk-link" href="#/contact">LET'S TALK</a>
+    </header>
+    <footer id="bottom-bar">
+      <span class="bottom-tagline"></span
+      ><span class="bottom-location"
+        ><span class="bottom-city"></span><time class="clock"></time
+      ></span>
+    </footer>
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>
