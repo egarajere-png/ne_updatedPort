@@ -74,7 +74,7 @@ export function createTransitionManager(pageLayer, card = document.querySelector
         } else {
           gsap.set(card, { yPercent: -110, rotate: 0, transformOrigin: "0% 100%", autoAlpha: 1, force3D: true });
           timeline.to(card, { yPercent: 0, duration: durationScale, ease: "none" }, 0)
-            .to(pageLayer, { scale: 1, rotate: 0, yPercent: 0, duration: durationScale, ease: "none" }, 0);
+            .to(pageLayer, { scale: 1, yPercent: 0, duration: durationScale, ease: "none" }, 0);
         }
         timeline.addPause(durationScale, () => {
           Promise.resolve().then(() => onCovered(timeline)).then(() => timeline?.resume(), (error) => { onError(error); timeline?.resume(); });
@@ -83,7 +83,7 @@ export function createTransitionManager(pageLayer, card = document.querySelector
           .to(chars, { yPercent: -110, duration: durationScale, ease: "none", stagger: 0 }, durationScale + .2)
           .add(() => onLiftStart(), durationScale + .35)
           .to(card, { autoAlpha: 0, duration: durationScale, ease: "none" }, durationScale + .35)
-          .to(pageLayer, { scale: 1, rotate: 0, yPercent: 0, duration: durationScale, ease: "none" }, durationScale + .35);
+          .to(pageLayer, { scale: 1, yPercent: 0, duration: durationScale, ease: "none" }, durationScale + .35);
       } else {
         if (fromMenu) {
           gsap.set(card, { yPercent: 0, rotate: 0, autoAlpha: 1, transformOrigin: "0% 100%", force3D: true });
@@ -95,7 +95,7 @@ export function createTransitionManager(pageLayer, card = document.querySelector
           gsap.set(card, { yPercent: -110, rotate: -10, transformOrigin: "0% 100%", autoAlpha: 1, force3D: true });
           gsap.set(pageLayer, { visibility: "visible", transformOrigin: "50% 100%", force3D: true });
           timeline.to(card, { yPercent: 0, rotate: 0, duration: CARD_DROP, ease: "hop", force3D: true }, 0)
-            .to(pageLayer, { scale: 1.08, rotate: -2, yPercent: -4, duration: CARD_DROP, ease: "hop", force3D: true }, 0);
+            .to(pageLayer, { scale: 1.08, yPercent: -4, duration: CARD_DROP, ease: "hop", force3D: true }, 0);
         }
 
         // Pause at full cover until the new view is ready and mounted underneath.
@@ -109,7 +109,7 @@ export function createTransitionManager(pageLayer, card = document.querySelector
           .to(chars, { yPercent: -110, duration: CARD_TEXT_OUT_DURATION, ease: "hop2", stagger: { each: .015, from: "random" }, force3D: true }, CARD_TEXT_OUT)
           .add(() => onLiftStart(), CARD_LIFT)
           .to(card, { yPercent: -110, rotate: -10, duration: CARD_LIFT_DURATION, ease: "hop", force3D: true }, CARD_LIFT)
-          .fromTo(pageLayer, { scale: 1.1, rotate: -3, yPercent: 6 }, { scale: 1, rotate: 0, yPercent: 0, duration: CARD_LIFT_DURATION, ease: "hop", force3D: true }, CARD_LIFT);
+          .fromTo(pageLayer, { scale: 1.1, yPercent: 6 }, { scale: 1, yPercent: 0, duration: CARD_LIFT_DURATION, ease: "hop", force3D: true }, CARD_LIFT);
       }
       timeline.play(0);
     });

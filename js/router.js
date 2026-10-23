@@ -81,7 +81,7 @@ export function createRouter() {
     document.title = routeTitle(currentRoute);
     layer.inert = false;
     if (arrival) {
-      gsap.set(layer, { visibility: "visible", opacity: 1, scale: reducedMotion ? 1 : 1.1, rotate: reducedMotion ? 0 : -3, yPercent: reducedMotion ? 0 : 6, transformOrigin: "50% 100%", force3D: true });
+      gsap.set(layer, { visibility: "visible", opacity: 1, scale: reducedMotion ? 1 : 1.1, yPercent: reducedMotion ? 0 : 6, transformOrigin: "50% 100%", force3D: true });
     } else {
       gsap.set(layer, { visibility: "visible", opacity: 1, clearProps: "transform" });
     }

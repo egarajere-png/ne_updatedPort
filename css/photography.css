@@ -1,7 +1,8 @@
 :root { --bar-ink: var(--ink); --menu-ink: #141414; }
 #top-bar, #bottom-bar { color: var(--bar-ink); }
-.transition-card-title { position: absolute; z-index: 3; inset: 0; display: grid; place-items: center; padding: 8vw; visibility: hidden; font: 700 clamp(4rem, 10vw, 14rem)/.82 var(--display); letter-spacing: -.07em; text-align: center; text-transform: uppercase; pointer-events: none; }
-.transition-title-char { display: inline-block; }
+.transition-card-title { position: absolute; z-index: 3; inset: 0; display: flex; flex-wrap: wrap; align-content: center; align-items: center; justify-content: center; padding: 8vw; visibility: hidden; font: 700 clamp(4rem, 10vw, 14rem)/.82 var(--display); letter-spacing: -.07em; text-align: center; text-transform: uppercase; white-space: pre-wrap; pointer-events: none; }
+.transition-title-char { display: inline-block; white-space: pre; }
+.transition-title-char-mask { display: inline-block; overflow: hidden; vertical-align: top; white-space: pre; }
 #menu-card.is-transitioning .menu-columns,
 #menu-card.is-transitioning .menu-mobile-actions,
 #menu-card.is-transitioning .menu-url { pointer-events: none; }
@@ -16,16 +17,16 @@
 .photo-backdrop:first-child { opacity: 1; }
 .photo-theme-wash { z-index: 1; background: #2a1612; opacity: .55; }
 .photo-layers { position: absolute; z-index: 2; inset: 0; perspective: 250px; perspective-origin: 50% 100%; transform-style: preserve-3d; }
-.photo-project-layer { position: absolute; top: 34%; left: 50%; width: 67vw; height: 63svh; padding: 0; border: 0; background: transparent; color: inherit; overflow: visible; cursor: pointer; transform-origin: 50% 50%; }
+.photo-project-layer { position: absolute; top: 64%; left: 50%; width: 48vw; aspect-ratio: 16 / 9; padding: 0; border: 0; background: transparent; color: inherit; overflow: visible; cursor: pointer; transform-origin: 50% 50%; }
 .photo-cover { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; overflow: hidden; background: #17110f; }
 .photo-cover img { width: 100%; height: 100%; object-fit: cover; }
 .photo-title { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; padding: 2vw; text-align: center; font: 500 clamp(2.5rem, 6vw, 9rem)/.85 var(--display); letter-spacing: -.06em; text-transform: uppercase; text-shadow: 0 1px 18px #0005; }
 .photo-title-word { display: inline-block; overflow: hidden; vertical-align: top; }
 .photo-label,.photo-project-count,.photo-year,.photo-scroll { position: absolute; z-index: 3; font: 400 10px/1.3 var(--mono); text-transform: uppercase; }
-.photo-progress { left: var(--gutter); top: 5rem; }
-.photo-project-count { left: 9rem; top: 5rem; }
-.photo-year { left: var(--gutter); top: 6.6rem; white-space: pre-line; }
-.photo-scroll { right: var(--gutter); top: 5rem; border: 0; padding: 0; background: none; color: inherit; }
+.photo-progress { left: var(--gutter); top: 3.3rem; }
+.photo-project-count { left: 9rem; top: 3.3rem; }
+.photo-year { left: var(--gutter); top: 4.7rem; white-space: pre-line; }
+.photo-scroll { right: var(--gutter); top: 3.3rem; border: 0; padding: 0; background: none; color: inherit; }
 .photo-scroll { transition: opacity .2s ease, transform .2s ease; }
 .photo-scroll.is-hidden { opacity: 0; transform: translate3d(0,-.3rem,0); pointer-events: none; }
 .photo-scroll span { display: inline-block; margin-left: .5rem; animation: photo-arrow 1.2s ease-in-out infinite alternate; }
@@ -96,7 +97,7 @@
 @media(max-width:768px) {
   .photo-progress,.photo-project-count,.photo-year,.photo-scroll { top: max(4.4rem,calc(env(safe-area-inset-top) + 3.5rem)); font-size: 8px; }
   .photo-progress { left: 4vw; }.photo-project-count { left: 23vw; }.photo-year { top: calc(max(4.4rem,calc(env(safe-area-inset-top) + 3.5rem)) + 1.35rem); left: 4vw; }.photo-scroll { right: 4vw; }
-  .photo-project-layer { top: 34%; width: 68.5vw; height: 46svh; }
+  .photo-project-layer { top: 62%; width: 68.5vw; height: 46svh; aspect-ratio: auto; }
   .photo-title { font-size: 12vw; }
   .project-scroll-counter { top: max(4.5rem,calc(env(safe-area-inset-top) + 3.5rem)); left: 5vw; }
   .project-intro { min-height: auto; display: flex; flex-direction: column; padding: max(5.5rem,calc(env(safe-area-inset-top) + 4.4rem)) 3.5vw 2rem; }
