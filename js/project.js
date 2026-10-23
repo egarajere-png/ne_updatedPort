@@ -9,6 +9,7 @@ import { getCursor } from "./cursor.js";
 gsap.registerPlugin(ScrollTrigger, SplitText);
 const projects = siteConfig.photography.projects;
 const pad = (n) => String(n).padStart(2, "0");
+const INITIAL_IMAGE_COUNT = 3;
 const escapeHTML = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
 export function createProjectView(root, slug, { navigate } = {}) {
@@ -23,6 +24,7 @@ export function createProjectView(root, slug, { navigate } = {}) {
   let lenis = null;
   let lenisTicker = null;
   let viewer = null;
+  let viewerOpening = false;
   let cursor = getCursor();
   let detailSplits = [];
   let scrollTriggers = [];
@@ -49,7 +51,7 @@ export function createProjectView(root, slug, { navigate } = {}) {
       ["GEAR USED", project.gear.map((v) => `<p>${escapeHTML(v)}</p>`).join("")],
       ["SERVICES PROVIDED", project.services.map((v) => `<p>${escapeHTML(v)}</p>`).join("")],
     ].map(([label, body]) => `<div class="project-detail-col"><h2 class="utility" data-detail-reveal>${label}</h2><div data-detail-reveal>${body}</div></div>`).join("")}</section>
-    <section class="project-gallery">${images.map((src, i) => `<figure class="project-gallery-item gallery-item-${i % 6}" data-gallery-index="${i}"><div class="project-image-mask"><img src="${src}" alt="${escapeHTML(project.title)} photograph ${i + 1}" loading="${i < 3 ? "eager" : "lazy"}" decoding="async"></div></figure>`).join("")}</section>
+    <section class="project-gallery">${images.map((src, i) => `<figure class="project-gallery-item gallery-item-${i % 6}" data-gallery-index="${i}"><div class="project-image-mask"><img src="${src}" alt="${escapeHTML(project.title)} photograph ${i + 1}" loading="${i < INITIAL_IMAGE_COUNT ? "eager" : "lazy"}" decoding="async"></div></figure>`).join("")}</section>
     <section class="next-project"><img class="next-project-bg" src="${next.cover}" alt="" decoding="async"><div class="next-shade"></div><span class="next-number next-number-left">${pad(index + 2 > projects.length ? 1 : index + 2)}</span><span class="next-number next-number-right">${pad(index + 2 > projects.length ? 1 : index + 2)}</span><button class="next-project-open" type="button" aria-label="Open ${escapeHTML(next.title)} project"><span class="next-project-label utility">NEXT PROJECT</span><span class="next-project-title">${escapeHTML(next.title)}</span></button><div class="next-project-footer"><a href="mailto:${siteConfig.contact.email}">${escapeHTML(siteConfig.contact.email)}</a><button class="back-to-top">BACK TO TOP</button><span>${escapeHTML(next.location)}</span></div><div class="next-progress"><span></span></div></section>
   </main>
   <section class="image-viewer" aria-hidden="true" inert>
@@ -279,12 +281,20 @@ export function createProjectView(root, slug, { navigate } = {}) {
 
   async function ready() {
     const [coverTheme, followingTheme, visuals] = await Promise.all([
-      themeForProject(project), themeForProject(next), Promise.all(images.map((src) => visualForImage(src, project.theme || "#2a1612"))),
+      themeForProject(project),
+      themeForProject(next),
+      Promise.all(
+        images
+          .slice(0, INITIAL_IMAGE_COUNT)
+          .map((src) => visualForImage(src, project.theme || "#2a1612")),
+      ),
     ]);
     projectTheme = coverTheme;
     nextTheme = followingTheme;
     imageVisuals = visuals;
-    const imagePromises = [...root.querySelectorAll("img")].map((img) => img.decode?.().catch(() => {}) || Promise.resolve());
+    const imagePromises = [...root.querySelectorAll("img")]
+      .filter((img) => img.loading !== "lazy")
+      .map((img) => img.decode?.().catch(() => {}) || Promise.resolve());
     return Promise.all([document.fonts.ready, ...imagePromises]);
   }
 
@@ -389,9 +399,20 @@ export function createProjectView(root, slug, { navigate } = {}) {
   }
 
   async function openViewer(startAt) {
-    if (viewer || !started) return;
-    // Images and their aspect/theme data are decoded in ready(); this only selects an asset.
-    const visual = imageVisuals[startAt];
+    if (viewer || viewerOpening || !started) return;
+    viewerOpening = true;
+    let visual;
+    try {
+      visual =
+        imageVisuals[startAt] ||
+        (imageVisuals[startAt] = await visualForImage(
+          images[startAt],
+          projectTheme,
+        ));
+    } finally {
+      viewerOpening = false;
+    }
+    if (viewer || !started || disposed) return;
     viewerFront = "a";
     setViewerImage(viewerLayers.a, startAt, visual);
     setViewerImage(viewerLayers.b, startAt, visual);
