@@ -6,40 +6,55 @@ import { getCursor } from "./cursor.js";
 
 gsap.registerPlugin(SplitText);
 
-// Ported deck controls. Keep these together so the stack can be tuned as a unit.
+// Deck controls. Keep these together so the stack can be tuned as a unit.
 const VISIBLE = 5;
 const FRONT = VISIBLE - 1;
-const STEP = 15;
 const DURATION = 1;
 const STEP_DURATION = reducedMotion ? 0.3 : DURATION;
 const EASE = "power3.inOut";
 const INPUT_COOLDOWN = 1150;
+const OVERSHOOT = 3;
 const WHEEL_THRESHOLD = 100;
+const TOUCH_THRESHOLD = 40;
 const projects = siteConfig.photography.projects;
 let returnIndex = 0;
 let hasInteracted = false;
 export { returnIndex };
 
+// Stack proportions copied from the reference: each layer behind the front is a little
+// narrower and peeks a little higher above the one in front of it. Index = depth from the front.
+const DEPTH_SCALE = [1, 0.877, 0.781, 0.704, 0.64, 0.585];
+const DEPTH_PEEK = [0, 0.027, 0.046, 0.064, 0.08, 0.095]; // fraction of the front image height
+const GROW_PER_SLOT = 0.3; // how much bigger the front layer gets per slot when it flies toward the viewer
+const DECK_ASPECT_DESKTOP = 16 / 9;
+const DECK_ASPECT_MOBILE = 4 / 5;
+const geo = { w: 0, h: 0, top: 0 };
+
 const mod = (n, length) => ((n % length) + length) % length;
-const slotScale = (p) => {
-  const scales = [0.82, 0.86, 0.9, 0.95, 1];
-  const slot = Math.max(0, Math.min(FRONT, p));
-  const from = Math.floor(slot);
-  const to = Math.ceil(slot);
-  return gsap.utils.interpolate(scales[from], scales[to], slot - from);
+const sample = (table, d) => {
+  const i = Math.max(0, Math.min(Math.floor(d), table.length - 2));
+  return table[i] + (table[i + 1] - table[i]) * (d - i);
 };
-const pos = (p) => ({
-  xPercent: -50,
-  // Keep the five projected cards tightly grouped around a centered front.
-  // With the 250px bottom-origin perspective, this offsets the deeper cards
-  // upward enough to reveal only a narrow strip above the front image.
-  yPercent: matchMedia("(max-width: 768px)").matches
-    ? -104 + 13.5 * p
-    : -98 + 12 * p,
-  scale: slotScale(p),
-  z: STEP * p,
-  force3D: true,
-});
+// p = slot position: 0 is the farthest back, FRONT is the closest. Fractions and values outside
+// 0..FRONT are allowed (used by the layers entering and leaving). Every layer scales from its top centre.
+const pos = (p) => {
+  const d = FRONT - p;
+  if (d >= 0) {
+    return {
+      xPercent: -50,
+      y: geo.top - sample(DEPTH_PEEK, d) * geo.h,
+      scale: sample(DEPTH_SCALE, d),
+      force3D: true,
+    };
+  }
+  const scale = 1 + -d * GROW_PER_SLOT;
+  return {
+    xPercent: -50,
+    y: geo.top - ((scale - 1) * geo.h) / 2,
+    scale,
+    force3D: true,
+  };
+};
 const slotOpacity = (p) =>
   p < 0 || p > FRONT ? 0 : [0.28, 0.43, 0.6, 0.79, 1][p];
 
@@ -69,7 +84,6 @@ export function createPhotographyView(root, { navigate } = {}) {
   let wheelSum = 0;
   let wheelDirection = 0;
   let wheelReset = null;
-  let touchStart = null;
   let running = false;
   let disposed = false;
 
@@ -113,7 +127,7 @@ export function createPhotographyView(root, { navigate } = {}) {
     return layer;
   }
 
-  function displayProject(index, animate = false, timeline = null, direction = 1) {
+  function displayProject(index, animate = false, timeline = null) {
     const item = projects[index];
     const percent = Math.round(
       (100 * index) / Math.max(1, projects.length - 1),
@@ -142,10 +156,10 @@ export function createPhotographyView(root, { navigate } = {}) {
           },
           0,
         );
-      rollLabel(counter, newCounter, timeline, direction);
-      rollLabel(count, newCount, timeline, direction);
-      rollLabel(year, newYear, timeline, direction);
-      rollLabel(city, item.location, timeline, direction);
+      rollLabel(counter, newCounter, timeline);
+      rollLabel(count, newCount, timeline);
+      rollLabel(year, newYear, timeline);
+      rollLabel(city, item.location, timeline);
     } else {
       counter.textContent = newCounter;
       count.textContent = newCount;
@@ -164,7 +178,7 @@ export function createPhotographyView(root, { navigate } = {}) {
       ?.setAttribute("content", color);
   }
 
-  function rollLabel(node, value, timeline, direction = 1) {
+  function rollLabel(node, value, timeline) {
     // Small metadata is a masked two-line swap; it is built into the step timeline.
     const original = node.textContent;
     if (original === value) return;
@@ -178,14 +192,12 @@ export function createPhotographyView(root, { navigate } = {}) {
     newLine.textContent = value;
     mask.append(oldLine, newLine);
     node.replaceChildren(mask);
-    const incomingY = direction > 0 ? 100 : -100;
-    const outgoingY = -incomingY;
-    gsap.set(newLine, { yPercent: incomingY });
+    gsap.set(newLine, { yPercent: 100 });
     timeline
       .to(
         oldLine,
         {
-          yPercent: reducedMotion ? 0 : outgoingY,
+          yPercent: reducedMotion ? 0 : -100,
           duration: reducedMotion ? 0.01 : 0.55,
           ease: reducedMotion ? "none" : "hop2",
         },
@@ -245,7 +257,52 @@ export function createPhotographyView(root, { navigate } = {}) {
     });
   }
 
+  function layout() {
+    // Use layout sizes (clientWidth, offsetTop), not bounding boxes: the page layer is scaled during transitions.
+    const W = stage.clientWidth || window.innerWidth;
+    const H = stage.clientHeight || window.innerHeight;
+    const rem =
+      parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    const mobile = window.matchMedia("(max-width: 768px)").matches;
+    // Safe area: below the labels under the top bar, above the bottom bar.
+    const labels = [counter, count, scrollHint, ...(mobile ? [year] : [])];
+    const labelsBottom = stage.clientHeight
+      ? Math.max(...labels.map((node) => node.offsetTop + node.offsetHeight))
+      : 0;
+    const safeTop = Math.max(
+      labelsBottom + 0.7 * rem,
+      (mobile ? 7.4 : 6.4) * rem,
+    );
+    const bar = document.querySelector("#bottom-bar");
+    const barTop = H - (bar?.offsetHeight || 28);
+    const safeBottom = Math.min(H - 4 * rem, barTop - 2.4 * rem);
+    const safeHeight = Math.max(200, safeBottom - safeTop);
+    const peekTotal = DEPTH_PEEK[FRONT];
+    const aspect = mobile ? DECK_ASPECT_MOBILE : DECK_ASPECT_DESKTOP;
+    // Width: 84vw on desktop, 90vw on mobile, never taller than the safe area allows.
+    const maxW = W * (mobile ? 0.9 : 0.84);
+    const w = Math.min(maxW, (safeHeight / (1 + peekTotal)) * aspect);
+    const h = w / aspect;
+    const groupHeight = h * (1 + peekTotal);
+    geo.w = w;
+    geo.h = h;
+    geo.top = safeTop + (safeHeight - groupHeight) / 2 + peekTotal * h; // top of the FRONT image; the stack peeks above it
+    stage.style.setProperty("--deck-w", `${w}px`);
+    stage.style.setProperty("--deck-h", `${h}px`);
+  }
+
+  let layoutFrame = 0;
+  const onResize = () => {
+    cancelAnimationFrame(layoutFrame);
+    layoutFrame = requestAnimationFrame(() => {
+      layout();
+      if (!busy) setNearLayers();
+      updateScrollHintLabel();
+    });
+  };
+
   function initialize() {
+    layout();
     layers.forEach(({ split }) => split.revert());
     layers = [];
     for (let p = 0; p < VISIBLE; p++) {
@@ -304,7 +361,6 @@ export function createPhotographyView(root, { navigate } = {}) {
     incoming.theme =
       projects[incomingIndex].theme || projects[incomingIndex].visual.color;
     gsap.set(incoming.button, {
-      // A backward step reverses the far layer's forward exit from slot -1.
       ...pos(down ? FRONT - 1.2 : -1),
       opacity: 0,
       pointerEvents: "none",
@@ -334,8 +390,10 @@ export function createPhotographyView(root, { navigate } = {}) {
             opacity: slotOpacity(p),
             pointerEvents: p === FRONT ? "auto" : "none",
           });
-          gsap.set(layer.words, { yPercent: p === FRONT ? 0 : 110 });
+          if (layer !== incoming && p !== FRONT)
+            gsap.set(layer.words, { yPercent: 110 });
         });
+        gsap.set(incoming.words, { yPercent: 0 });
         displayProject(active, false);
         stepTimeline = null;
         finishStep();
@@ -347,8 +405,9 @@ export function createPhotographyView(root, { navigate } = {}) {
     });
     stepTimeline = timeline;
     setBackdrop(projects[active], 0, timeline);
-    displayProject(active, true, timeline, direction);
+    displayProject(active, true, timeline);
 
+    const shift = down ? -1 : 1;
     layers.forEach((layer, p) => {
       const target = down ? p - 1 : p + 1;
       if (reducedMotion) {
@@ -367,18 +426,17 @@ export function createPhotographyView(root, { navigate } = {}) {
           );
         if (!down && layer === layers[FRONT - 1])
           timeline.set(layer.words, { yPercent: 0 }, STEP_DURATION);
-      } else if (!down && layer === oldFront) {
-        // Retrace the incoming front card's exact path from the previous step.
-        timeline.to(layer.button, { ...pos(FRONT - 1.2), opacity: 0 }, 0);
+      } else if (layer === outgoing && !down) {
+        timeline.to(layer.button, { ...pos(FRONT + OVERSHOOT), opacity: 0 }, 0);
         timeline.to(
           layer.words,
           {
-            yPercent: 110,
-            duration: 0.75,
-            ease: "power4.in",
-            stagger: { each: 0.15, from: "end" },
+            yPercent: -110,
+            duration: 0.42,
+            ease: "hop2",
+            stagger: { each: 0.015, from: "random" },
           },
-          0.5,
+          0,
         );
       } else {
         timeline.to(
@@ -399,16 +457,11 @@ export function createPhotographyView(root, { navigate } = {}) {
           0,
         );
       } else if (!down && layer === layers[FRONT - 1]) {
-        // Reverse the prior front title's drop as that card returns to the front.
+        // This becomes the new front and rises into place as the deck settles.
         timeline.to(
           layer.words,
-          {
-            yPercent: 0,
-            duration: 0.55,
-            ease: "hop2",
-            stagger: { each: 0.015, from: "random" },
-          },
-          0,
+          { yPercent: 0, duration: 0.75, ease: "power4.out", stagger: 0.15 },
+          0.5,
         );
       }
     });
@@ -430,44 +483,51 @@ export function createPhotographyView(root, { navigate } = {}) {
         { yPercent: 0, duration: 0.75, ease: "power4.out", stagger: 0.15 },
         0.5,
       );
+    else timeline.to(incoming.words, { yPercent: 110, duration: 0.01 }, 0);
   }
 
   const onWheel = (event) => {
     event.preventDefault();
-    if (event.deltaY) wheelDirection = Math.sign(event.deltaY);
+    if (busy || cooldown || !running) return; // ignore trackpad inertia while a step is running
     wheelSum += Math.abs(event.deltaY);
     clearTimeout(wheelReset);
     wheelReset = setTimeout(() => {
       wheelSum = 0;
-      wheelDirection = 0;
     }, 150);
-    if (Math.abs(wheelSum) >= WHEEL_THRESHOLD) {
-      const direction = wheelDirection || 1;
+    if (wheelSum >= WHEEL_THRESHOLD) {
       wheelSum = 0;
-      wheelDirection = 0;
-      requestStep(direction);
+      requestStep(event.deltaY > 0 ? 1 : -1);
     }
   };
+
+  // Touch: one swipe = one step. Finger moving up goes to the next project.
+  let touchStartY = null;
+  let touchStartX = 0;
+  let touchHandled = false;
   const onTouchStart = (event) => {
     if (event.touches.length !== 1) {
-      touchStart = null;
+      touchStartY = null;
       return;
     }
-    touchStart = { y: event.touches[0].clientY };
+    touchStartY = event.touches[0].clientY;
+    touchStartX = event.touches[0].clientX;
+    touchHandled = false;
   };
   const onTouchMove = (event) => {
-    if (touchStart && event.cancelable) event.preventDefault();
+    if (event.cancelable) event.preventDefault(); // stop the browser from scrolling or pull-to-refresh
+    if (touchStartY === null || touchHandled || event.touches.length !== 1)
+      return;
+    const dy = touchStartY - event.touches[0].clientY;
+    const dx = touchStartX - event.touches[0].clientX;
+    if (Math.abs(dy) >= TOUCH_THRESHOLD && Math.abs(dy) > Math.abs(dx)) {
+      touchHandled = true;
+      requestStep(dy > 0 ? 1 : -1);
+    }
   };
-  const onTouchEnd = (event) => {
-    if (!touchStart || !event.changedTouches.length) return;
-    const end = event.changedTouches[0];
-    const deltaY = end.clientY - touchStart.y;
-    touchStart = null;
-    if (Math.abs(deltaY) < 50) return;
-    if (event.cancelable) event.preventDefault();
-    requestStep(deltaY < 0 ? 1 : -1);
+  const onTouchEnd = () => {
+    touchStartY = null;
+    touchHandled = false;
   };
-  const onTouchCancel = () => { touchStart = null; };
   const onKey = (event) => {
     if (root.closest("#page-layer")?.inert) return;
     if (["ArrowDown", "PageDown", " "].includes(event.key)) {
@@ -527,7 +587,14 @@ export function createPhotographyView(root, { navigate } = {}) {
 
   function show() {
     if (!layers.length) initialize();
+    layout();
     setNearLayers();
+    document.fonts?.ready.then(() => {
+      if (!disposed && !busy) {
+        layout();
+        setNearLayers();
+      }
+    });
     backdropIndex = 0;
     gsap.set(backdropNodes[0], { opacity: 1 });
     gsap.set(backdropNodes[0], { zIndex: 2 });
@@ -545,13 +612,15 @@ export function createPhotographyView(root, { navigate } = {}) {
     if (running) return;
     running = true;
     disposed = false;
+    layout();
+    setNearLayers();
     stage.addEventListener("touchstart", onTouchStart, { passive: true });
     stage.addEventListener("touchmove", onTouchMove, { passive: false });
-    stage.addEventListener("touchend", onTouchEnd, { passive: false });
-    stage.addEventListener("touchcancel", onTouchCancel, { passive: true });
+    stage.addEventListener("touchend", onTouchEnd, { passive: true });
+    stage.addEventListener("touchcancel", onTouchEnd, { passive: true });
     stage.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("keydown", onKey);
-    window.addEventListener("resize", updateScrollHintLabel);
+    window.addEventListener("resize", onResize);
     scrollHint.addEventListener("click", onScrollClick);
   }
 
@@ -562,10 +631,11 @@ export function createPhotographyView(root, { navigate } = {}) {
     stage.removeEventListener("touchstart", onTouchStart);
     stage.removeEventListener("touchmove", onTouchMove);
     stage.removeEventListener("touchend", onTouchEnd);
-    stage.removeEventListener("touchcancel", onTouchCancel);
+    stage.removeEventListener("touchcancel", onTouchEnd);
+    cancelAnimationFrame(layoutFrame);
     stage.removeEventListener("wheel", onWheel);
     window.removeEventListener("keydown", onKey);
-    window.removeEventListener("resize", updateScrollHintLabel);
+    window.removeEventListener("resize", onResize);
     scrollHint.removeEventListener("click", onScrollClick);
     clearTimeout(wheelReset);
     cooldownCall?.kill();
